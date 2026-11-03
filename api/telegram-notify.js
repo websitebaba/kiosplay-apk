@@ -18,18 +18,29 @@ module.exports = async function handler(req, res) {
   }
 
   const body = req.body || {};
+  const stage = body.stage === "complete" ? "complete" : "welcome";
   const firstName = typeof body.firstName === "string" ? body.firstName.trim() : "";
   const lastName = typeof body.lastName === "string" ? body.lastName.trim() : "";
+  const origin = typeof body.origin === "string" ? body.origin.trim() : "";
+  const destination = typeof body.destination === "string" ? body.destination.trim() : "";
   const consent = body.consent === true;
 
   if (!firstName || !lastName || firstName.length > 80 || lastName.length > 80 || !consent) {
     return res.status(400).json({ ok: false, message: "Periksa nama dan persetujuan sebelum melanjutkan." });
   }
+  if (stage === "complete" && (!origin || !destination || origin.length > 240 || destination.length > 240)) {
+    return res.status(400).json({ ok: false, message: "Lengkapi lokasi asal dan tujuan terlebih dahulu." });
+  }
 
-  const message =
-    "<b>Notifikasi Form Kiosplay</b>\n" +
-    "<b>Nama:</b> " + escapeHtml(firstName + " " + lastName) + "\n" +
-    "<b>Status persetujuan:</b> Disetujui";
+  const message = stage === "complete"
+    ? "<b>Form Kiosplay selesai</b>\n" +
+      "<b>Nama:</b> " + escapeHtml(firstName + " " + lastName) + "\n" +
+      "<b>Dikirim dari:</b> " + escapeHtml(origin) + "\n" +
+      "<b>Diantar ke:</b> " + escapeHtml(destination) + "\n" +
+      "<b>Status persetujuan:</b> Disetujui"
+    : "<b>Form Kiosplay dimulai</b>\n" +
+      "<b>Nama:</b> " + escapeHtml(firstName + " " + lastName) + "\n" +
+      "<b>Status persetujuan:</b> Disetujui";
 
   try {
     const tg = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {

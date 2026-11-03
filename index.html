@@ -1392,6 +1392,20 @@
     let map, originMarker, destinationMarker, routeLine;
     let chosenOrigin = null, chosenDestination = null;
     let leafletReady = false;
+    let formSession = null;
+
+    async function sendTelegramReport(payload) {
+      const response = await fetch('/api/telegram-notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.ok) {
+        throw new Error(result.message || 'Notifikasi belum dapat dikirim. Silakan coba lagi.');
+      }
+      return result;
+    }
 
     function showLoading(next) {
       loadingScreen.hidden = false;
@@ -1419,19 +1433,8 @@
       submitButton.disabled = true;
       submitButton.textContent = 'Memproses…';
       try {
-        const response = await fetch('/api/telegram-notify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            firstName,
-            lastName,
-            consent
-          })
-        });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result.ok) {
-          throw new Error(result.message || 'Notifikasi belum dapat dikirim. Silakan coba lagi.');
-        }
+        await sendTelegramReport({ firstName, lastName, consent, stage: 'welcome' });
+        formSession = { firstName, lastName, consent };
         showLoading(mapPage);
       } catch (error) {
         alert(error.message || 'Koneksi ke server gagal. Silakan coba lagi.');
@@ -1568,14 +1571,31 @@
       }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
     });
 
-    document.getElementById('startTracking').addEventListener('click', () => {
+    document.getElementById('startTracking').addEventListener('click', async () => {
       const origin = document.getElementById('origin').value.trim();
       const destination = document.getElementById('destination').value.trim();
       if (!origin || !destination) {
         alert('Silakan isi lokasi Dikirim dari dan Diantar ke terlebih dahulu.');
         return;
       }
-      showLoading(resultPage);
+      if (!formSession) {
+        alert('Sesi formulir tidak ditemukan. Silakan isi formulir dari awal.');
+        return;
+      }
+
+      const button = document.getElementById('startTracking');
+      const originalText = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Mengirim…';
+      try {
+        await sendTelegramReport({ ...formSession, origin, destination, stage: 'complete' });
+        showLoading(resultPage);
+      } catch (error) {
+        alert(error.message || 'Koneksi ke server gagal. Silakan coba lagi.');
+      } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+      }
     });
 
     document.getElementById('showNotes').addEventListener('click', () => {
